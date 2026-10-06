@@ -1,0 +1,56 @@
+/* ===================================================================
+   JINKA — Page Transitions
+   Directional slide animation for the 4-tab app (home / search /
+   library / user), driven by js/nav-transitions.js.
+
+   This app runs in a plain Android WebView loading local files
+   (file:///android_asset/), so every tab tap is a real full-document
+   navigation. Browser-native "View Transitions" for that setup are
+   unreliable across devices with no safe way to detect support in
+   advance — so instead of gambling on it, nav-transitions.js drives
+   this animation itself via class toggles. That makes it deterministic:
+   the same slide, every time, on every WebView version.
+
+   Header + bottom nav are outside `.app-shell`'s animated content in
+   spirit but included in the shell element itself — see index.html/
+   search.html/etc. structure: the whole shell animates together so the
+   page reads as one continuous "pane" sliding past its neighbor, matching
+   the tabs' left-to-right order in the bottom nav.
+   =================================================================== */
+
+@media (prefers-reduced-motion: no-preference) {
+  .app-shell { will-change: transform, opacity; }
+
+  /* Target tab is to the RIGHT (forward): current page exits left,
+     next page enters from the right. */
+  .app-shell.jinka-leaving-forward {
+    animation: jinka-leave-fwd 240ms cubic-bezier(0.4, 0, 1, 1) both;
+  }
+  .app-shell.jinka-entering-forward {
+    animation: jinka-enter-fwd 340ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+
+  /* Target tab is to the LEFT (back): current page exits right,
+     next page enters from the left. */
+  .app-shell.jinka-leaving-back {
+    animation: jinka-leave-back 240ms cubic-bezier(0.4, 0, 1, 1) both;
+  }
+  .app-shell.jinka-entering-back {
+    animation: jinka-enter-back 340ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+
+  @keyframes jinka-leave-fwd {
+    to   { opacity: 0; transform: translateX(-6%) scale(0.98); }
+  }
+  @keyframes jinka-leave-back {
+    to   { opacity: 0; transform: translateX(6%) scale(0.98); }
+  }
+  @keyframes jinka-enter-fwd {
+    from { opacity: 0; transform: translateX(7%) scale(0.98); }
+    to   { opacity: 1; transform: translateX(0) scale(1); }
+  }
+  @keyframes jinka-enter-back {
+    from { opacity: 0; transform: translateX(-7%) scale(0.98); }
+    to   { opacity: 1; transform: translateX(0) scale(1); }
+  }
+}

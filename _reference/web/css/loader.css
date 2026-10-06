@@ -1,0 +1,86 @@
+/* ===================================================================
+   JINKA — Loading Screens
+   1) .jinka-loader           full-shell splash shown for a brief instant
+                              on every page load, to smooth over the
+                              nav-transition + content-paint seam.
+   2) .jinka-loader--inline   smaller variant embedded inside the search
+                              results list while a search is in flight.
+
+   Both share the same mark: the app's ic_notification glyph (white on
+   transparency — the same asset the native cold-start splash and the
+   media notification use) that gently scales up/down, with a thin ring
+   rotating around it.
+   =================================================================== */
+
+.jinka-loader {
+  /* Fixed, not absolute: the loader is a direct child of <body>
+     (outside .app-shell) so the shell's enter animation can never
+     dim it. It paints opaque on first paint and stays put until
+     page-loader.js reveals the page beneath it. */
+  position: fixed;
+  inset: 0;
+  z-index: 60; /* above .bottom-nav (z-index 50) so the splash covers it too */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg);
+  opacity: 1;
+  visibility: visible;
+  transition: opacity 260ms var(--ease), visibility 260ms var(--ease);
+}
+.jinka-loader.is-hidden {
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+}
+
+/* Inline variant: sits within the flow of .search-results instead of
+   covering the whole shell, so the header/search bar stay interactive. */
+.jinka-loader--inline {
+  position: static;
+  inset: auto;
+  z-index: auto;
+  padding: var(--space-xl) 0;
+  background: none;
+}
+
+.jinka-loader-badge {
+  position: relative;
+  width: 56px;
+  height: 56px;
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.jinka-loader-ring {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  border: 2px solid var(--hairline-strong);
+  border-top-color: var(--text-primary);
+  animation: jinka-loader-spin 900ms linear infinite;
+}
+.jinka-loader-mark {
+  /* 20px inside the 56px badge mirrors the native cold-start splash
+     (jinka_splash.xml), which layers the same glyph at the same size. */
+  width: 20px;
+  height: 20px;
+  display: block;
+  -webkit-user-select: none;
+  user-select: none;
+  animation: jinka-loader-pulse 1100ms var(--ease) infinite;
+}
+
+@keyframes jinka-loader-spin {
+  to { transform: rotate(360deg); }
+}
+@keyframes jinka-loader-pulse {
+  0%, 100% { transform: scale(0.9); }
+  50%      { transform: scale(1.08); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .jinka-loader-ring,
+  .jinka-loader-mark { animation: none; }
+}

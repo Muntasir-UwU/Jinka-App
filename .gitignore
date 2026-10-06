@@ -1,0 +1,49 @@
+# Gradle
+.gradle/
+build/
+app/build/
+
+# Local config
+local.properties
+keystore.properties
+
+# Release signing keys - NEVER commit. Back up the .jks somewhere safe
+# (USB stick, password manager). Lose it and you can never update the app.
+*.jks
+*.keystore
+
+# IDE / AndroidIDE
+.idea/
+*.iml
+.cxx/
+.DS_Store
+
+# Generated APK/AAB
+*.apk
+*.aab
+
+# Kotlin
+.kotlin/
+keystore.properties
+*.jks
+keystore.properties
+local.properties
+*.jks
+*.keystore
+OpenJDK*.tar.gz
+.gradle/
+build/
+keystore.properties
+local.properties
+*.jks
+*.keystore
+OpenJDK*.tar.gz
+.gradle/
+build/
+keystore.properties
+local.properties
+*.jks
+*.keystore
+OpenJDK*.tar.gz
+.gradle/
+build/

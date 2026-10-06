@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<network-security-config>
+    <domain-config cleartextTrafficPermitted="false">
+        <domain includeSubdomains="true">googlevideo.com</domain>
+        <domain includeSubdomains="true">ytimg.com</domain>
+        <domain includeSubdomains="true">youtube.com</domain>
+        <domain includeSubdomains="true">youtube.googleapis.com</domain>
+        <domain includeSubdomains="true">soundcloud.com</domain>
+        <domain includeSubdomains="true">api.soundcloud.com</domain>
+        <domain includeSubdomains="true">sc-cdn.soundcloud.com</domain>
+        <domain includeSubdomains="true">i.ytimg.com</domain>
+        <domain includeSubdomains="true">img.youtube.com</domain>
+        <domain includeSubdomains="true">lh3.googleusercontent.com</domain>
+        <domain includeSubdomains="true">*.cdn.cloudflare.net</domain>
+        <domain includeSubdomains="true">*.fastly.net</domain>
+        <trust-anchors>
+            <certificates src="system" />
+        </trust-anchors>
+    </domain-config>
+    <base-config cleartextTrafficPermitted="false">
+        <trust-anchors>
+            <certificates src="system" />
+        </trust-anchors>
+    </base-config>
+</network-security-config>

@@ -1,0 +1,51 @@
+<svg xmlns="http://www.w3.org/2000/svg"
+     viewBox="0 0 691 1536"
+     fill="none">
+  <title>Profile Bow Icon</title>
+
+  <!-- Head ring: uses currentColor so it can be changed with CSS -->
+  <circle
+    class="icon-outline"
+    cx="340"
+    cy="505"
+    r="120"
+    stroke="currentColor"
+    stroke-width="31"
+    stroke-linecap="round"/>
+
+  <!-- Pink bow -->
+  <path
+    class="icon-bow"
+    fill="#F000A8"
+    d="M432.5 420.5
+       C474 401 515 405 548 419
+       C580 432 584 456 577 482
+       C568 516 548 548 519 558
+       C491 568 464 553 448 531
+       C437 516 431 498 427 480
+       C411 473 390 477 370 474
+       C340 470 318 457 316 437
+       C312 412 327 381 344 357
+       C360 335 378 329 394 332
+       C417 337 430 357 438 382
+       C443 397 445 409 448 420
+       C443 420 438 420 432.5 420.5 Z"/>
+
+  <!-- Shoulders -->
+  <path
+    class="icon-outline"
+    d="M65 1007
+       C84 913 132 824 204 770
+       C250 736 298 719 345 724
+       C397 719 447 738 491 771
+       C560 823 607 911 626 1007"
+    stroke="currentColor"
+    stroke-width="31"
+    stroke-linecap="round"
+    stroke-linejoin="round"/>
+
+  <style>
+    .icon-outline { color: #000000; }
+    .icon-bow { fill: #F000A8; }
+  </style>
+</svg>

@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!--
+      The UI is 100% Compose, so this only needs to hand off a clean, bar-less
+      window before the first frame. There is deliberately no night variant:
+      the design system in assets/www/css/style.css defines a single light
+      palette (bg #FFFFFF) with no dark counterpart, and silently flipping
+      the system theme would render the amber accent against colours that were
+      never designed for it.
+    -->
+    <style name="Theme.Jinki" parent="android:Theme.Material.Light.NoActionBar">
+        <item name="android:windowBackground">@color/bg</item>
+        <item name="android:statusBarColor">@color/bg</item>
+        <item name="android:navigationBarColor">@color/bg</item>
+        <item name="android:windowLightStatusBar">true</item>
+    </style>
+</resources>

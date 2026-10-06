@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="format-detection" content="telephone=no, date=no, address=no, email=no">
+<title>Jinka — You</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/style.css">
+<link rel="stylesheet" href="css/transitions.css">
+<link rel="stylesheet" href="css/loader.css">
+<link rel="stylesheet" href="css/user.css">
+<script type="module" src="https://cdn.jsdelivr.net/npm/ionicons@7.2.1/dist/ionicons/ionicons.esm.js"></script>
+<script nomodule src="https://cdn.jsdelivr.net/npm/ionicons@7.2.1/dist/ionicons/ionicons.js"></script>
+</head>
+<body data-page="user">
+
+<!-- ===== LOADING SCREEN (brief, masks the page-transition seam).
+     Lives OUTSIDE .app-shell so the shell's enter animation
+     (opacity 0 -> 1) can never dim or flash it. ===== -->
+<div class="jinka-loader" aria-hidden="true">
+  <div class="jinka-loader-badge">
+    <div class="jinka-loader-ring"></div>
+    <img class="jinka-loader-mark" src="img/ic_notification.png" alt="" draggable="false">
+  </div>
+</div>
+
+<div class="app-shell">
+
+  <div class="ambient-bg" aria-hidden="true">
+    <div class="ambient-blob ambient-blob-1"></div>
+    <div class="ambient-blob ambient-blob-2"></div>
+  </div>
+
+  <header class="app-header">
+    <span class="header-title">You</span>
+  </header>
+
+  <main class="app-main">
+
+    <!-- ===== Greeting + dynamic quote ===== -->
+    <section class="card greet-card">
+      <div class="greet-text">
+        <p class="greet-name">Hey, <span id="userName">Alex</span></p>
+        <p class="greet-quote" id="userQuote">…</p>
+      </div>
+      <div class="avatar-box" aria-hidden="true">
+        <span id="avatarInitial">A</span>
+      </div>
+    </section>
+
+    <!-- ===== Today listened ===== -->
+    <section class="card listened-card">
+      <span class="eyebrow">Today listened</span>
+      <div class="listened-time" id="listenedTime">00:00:00</div>
+      <span class="listened-sub">hh : mm : ss</span>
+    </section>
+
+    <!-- ===== Timer + Poke ===== -->
+    <div class="row-2">
+      <button class="card action-card" id="timerCard">
+        <div class="action-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="13" r="8"></circle>
+            <path d="M12 9v4l3 2"></path>
+            <path d="M9 2h6"></path>
+          </svg>
+        </div>
+        <span class="action-label">Timer</span>
+        <span class="action-sub" id="timerSub">Off</span>
+      </button>
+
+      <button class="card action-card" id="pokeCard">
+        <div class="action-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M8 11V6a2 2 0 1 1 4 0v5"></path>
+            <path d="M12 11V4a2 2 0 1 1 4 0v7"></path>
+            <path d="M16 11.5V7a2 2 0 1 1 4 0v7c0 3.5-2 7-7 7s-6-2.5-7-5l-1.5-3.5A1.8 1.8 0 0 1 6 10a1.8 1.8 0 0 1 2 1l1 2"></path>
+          </svg>
+        </div>
+        <span class="action-label">Poke</span>
+        <span class="action-sub" id="pokeSub">Say hi</span>
+        <span class="poke-badge" id="pokeBadge" hidden>0</span>
+      </button>
+    </div>
+
+    <!-- ===== Message ===== -->
+    <button class="pill-btn" id="messageBtn">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+      </svg>
+      <span>Send a message</span>
+    </button>
+
+  </main>
+
+  <!-- ===== BOTTOM NAVIGATION ===== -->
+  <nav class="bottom-nav" aria-label="Primary">
+    <a class="nav-item" href="index.html" aria-label="Home">
+      <ion-icon name="planet-outline"></ion-icon>
+    </a>
+    <a class="nav-item" href="search.html" aria-label="Search">
+      <ion-icon name="search-outline"></ion-icon>
+    </a>
+    <a class="nav-item" href="library.html" aria-label="Library">
+      <ion-icon name="musical-note-outline"></ion-icon>
+    </a>
+    <a class="nav-item" href="user.html" aria-current="page" aria-label="You">
+      <ion-icon name="person-outline"></ion-icon>
+    </a>
+  </nav>
+
+</div>
+
+<div class="sheet-backdrop" id="sheetBackdrop" hidden></div>
+
+<!-- ===== TIMER SHEET (set stop time) ===== -->
+<section class="sheet" id="timerSheet" aria-hidden="true">
+  <div class="sheet-handle"></div>
+  <header class="sheet-header">
+    <span class="sheet-title">Sleep timer</span>
+    <button class="sheet-close" id="timerClose" aria-label="Close">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M6 6l12 12M18 6L6 18"/></svg>
+    </button>
+  </header>
+  <div class="sheet-body">
+    <p class="timer-status" id="timerStatus">Stop playback automatically after:</p>
+    <div class="timer-chips" id="timerChips">
+      <button class="chip" data-mins="15">15 min</button>
+      <button class="chip" data-mins="30">30 min</button>
+      <button class="chip" data-mins="45">45 min</button>
+      <button class="chip" data-mins="60">60 min</button>
+    </div>
+    <div class="custom-row">
+      <input type="number" id="customMins" min="1" placeholder="Custom minutes">
+    </div>
+    <div class="sheet-actions">
+      <button class="btn btn-secondary" id="timerCancelBtn">Cancel timer</button>
+      <button class="btn btn-primary" id="timerStartBtn">Start</button>
+    </div>
+  </div>
+</section>
+
+<!-- ===== MESSAGE SHEET (with keypad popup on focus) ===== -->
+<section class="sheet" id="messageSheet" aria-hidden="true">
+  <div class="sheet-handle"></div>
+  <header class="sheet-header">
+    <span class="sheet-title">Message</span>
+    <button class="sheet-close" id="messageClose" aria-label="Close">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M6 6l12 12M18 6L6 18"/></svg>
+    </button>
+  </header>
+  <div class="sheet-body">
+    <div class="msg-log" id="msgLog">
+      <span class="msg-empty">No messages yet — say something.</span>
+    </div>
+    <div class="msg-input-row">
+      <textarea id="msgInput" rows="1" placeholder="Type a message…"></textarea>
+      <button class="msg-send" id="msgSend" aria-label="Send">
+        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M2 21l21-9L2 3v7l15 2-15 2z"/></svg>
+      </button>
+    </div>
+  </div>
+</section>
+
+<div class="toast" id="toast"></div>
+
+<script src="js/page-transitions.js"></script>
+<script src="js/nav-transitions.js"></script>
+<script src="js/page-loader.js"></script>
+<script src="js/sleep-timer.js"></script>
+<script src="js/app.js"></script>
+<script src="js/user.js"></script>
+</body>
+</html>

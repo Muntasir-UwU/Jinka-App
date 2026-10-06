@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="format-detection" content="telephone=no, date=no, address=no, email=no">
+<title>Jinka — Library</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/style.css">
+<link rel="stylesheet" href="css/transitions.css">
+<link rel="stylesheet" href="css/loader.css">
+<script type="module" src="https://cdn.jsdelivr.net/npm/ionicons@7.2.1/dist/ionicons/ionicons.esm.js"></script>
+<script nomodule src="https://cdn.jsdelivr.net/npm/ionicons@7.2.1/dist/ionicons/ionicons.js"></script>
+</head>
+<body data-page="library">
+
+<!-- ===== LOADING SCREEN (brief, masks the page-transition seam).
+     Lives OUTSIDE .app-shell so the shell's enter animation
+     (opacity 0 -> 1) can never dim or flash it. ===== -->
+<div class="jinka-loader" aria-hidden="true">
+  <div class="jinka-loader-badge">
+    <div class="jinka-loader-ring"></div>
+    <img class="jinka-loader-mark" src="img/ic_notification.png" alt="" draggable="false">
+  </div>
+</div>
+
+<div class="app-shell">
+
+  <header class="app-header">
+    <span class="header-title">Library</span>
+  </header>
+
+  <main class="app-main search-main">
+
+    <div class="library-results" id="libraryResults"></div>
+
+    <div class="empty-state" id="libraryEmpty" hidden>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round">
+        <rect x="4" y="4" width="16" height="16" rx="5"/>
+        <path d="M14 9.5v4.7a2 2 0 1 1-1.2-1.83V9.5l2.7-.6v4.9"/>
+      </svg>
+      <p>No offline songs yet.<br>Find something in <a href="search.html">Search</a> and double-tap it to save it here.</p>
+    </div>
+
+  </main>
+
+  <!-- ===== BOTTOM NAVIGATION ===== -->
+  <nav class="bottom-nav" aria-label="Primary">
+    <a class="nav-item" href="index.html" aria-label="Home">
+      <ion-icon name="planet-outline"></ion-icon>
+    </a>
+    <a class="nav-item" href="search.html" aria-label="Search">
+      <ion-icon name="search-outline"></ion-icon>
+    </a>
+    <a class="nav-item" href="library.html" aria-current="page" aria-label="Library">
+      <ion-icon name="musical-note-outline"></ion-icon>
+    </a>
+    <a class="nav-item" href="user.html" aria-label="User">
+      <ion-icon name="person-outline"></ion-icon>
+    </a>
+  </nav>
+
+</div>
+
+
+<script src="js/page-transitions.js"></script>
+<script src="js/nav-transitions.js"></script>
+<script src="js/page-loader.js"></script>
+<script src="js/sleep-timer.js"></script>
+<script src="js/app.js"></script>
+<script src="js/library.js"></script>
+</body>
+</html>
