@@ -61,3 +61,10 @@ local.properties
 OpenJDK*.tar.gz
 .gradle/
 build/
+keystore.properties
+local.properties
+*.jks
+*.keystore
+OpenJDK*.tar.gz
+.gradle/
+build/
