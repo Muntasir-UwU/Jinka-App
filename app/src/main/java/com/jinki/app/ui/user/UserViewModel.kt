@@ -3,14 +3,23 @@ package com.jinki.app.ui.user
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
+import com.google.firebase.database.DataSnapshot
+import com.google.firebase.database.DatabaseError
+import com.google.firebase.database.FirebaseDatabase
+import com.google.firebase.database.ValueEventListener
 import com.jinki.app.AppContainer
 import com.jinki.app.R
+import com.jinki.app.data.AuthRepository
 import com.jinki.app.data.ListenDao
 import com.jinki.app.data.ListenStats
+import com.jinki.app.data.SyncRepository
 import com.jinki.app.data.UserPrefs
+import com.jinki.app.di.FirebaseModule
 import com.jinki.app.player.PlayerConnection
 import java.time.LocalDate
+import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
@@ -18,7 +27,11 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.callbackFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
@@ -27,7 +40,10 @@ import kotlinx.coroutines.launch
 class UserViewModel(
     private val prefs: UserPrefs,
     listenDao: ListenDao,
-    private val connection: PlayerConnection
+    private val connection: PlayerConnection,
+    private val auth: AuthRepository,
+    private val sync: SyncRepository,
+    private val database: FirebaseDatabase
 ) : ViewModel() {
 
     val name: StateFlow<String> = prefs.userName
@@ -80,6 +96,113 @@ class UserViewModel(
         viewModelScope.launch {
             connection.timerElapsed.collect { _toast.emit(Toast(R.string.timer_elapsed_toast)) }
         }
+        observeActiveUsers()
+    }
+
+    // ---- Sync (matches what UserScreen expects) ----
+
+    private val _activeUsers = MutableStateFlow<List<ActiveUser>>(emptyList())
+
+    /** Everyone listed under /users with a /presence marker, minus yourself. */
+    val activeUsers: StateFlow<List<ActiveUser>> = _activeUsers.asStateFlow()
+
+    private val _syncedWith = MutableStateFlow<ActiveUser?>(null)
+
+    /** Who you are currently synced with, or null. */
+    val syncedWith: StateFlow<ActiveUser?> = _syncedWith.asStateFlow()
+
+    private val _syncState = MutableStateFlow<SyncState>(SyncState.Idle)
+
+    /** Password-check progress for the sync sheet. */
+    val syncState: StateFlow<SyncState> = _syncState.asStateFlow()
+
+    private fun observeActiveUsers() {
+        viewModelScope.launch {
+            auth.currentUser
+                .map { it?.uid }
+                .distinctUntilChanged()
+                .flatMapLatest { uid ->
+                    if (uid == null) flowOf(emptyList<ActiveUser>()) else liveActiveUsers(uid)
+                }
+                .collect { _activeUsers.value = it }
+        }
+    }
+
+    /**
+     * Live /users + /presence lists for everyone but [selfUid]. Listeners
+     * are removed when the flow closes (the ViewModel's scope is cancelled
+     * on clear). Never touches /playback or /private.
+     */
+    private fun liveActiveUsers(selfUid: String): Flow<List<ActiveUser>> = callbackFlow {
+        val usersRef = database.getReference("users")
+        val presenceRef = database.getReference("presence")
+        var usersSnap: DataSnapshot? = null
+        var present: Set<String> = emptySet()
+        fun publish() {
+            val snap = usersSnap ?: return
+            trySend(usersSnapshotToActiveUsers(snap, selfUid, present))
+        }
+        val usersListener = object : ValueEventListener {
+            override fun onDataChange(s: DataSnapshot) {
+                usersSnap = s
+                publish()
+            }
+
+            override fun onCancelled(e: DatabaseError) { /* keep last list */ }
+        }
+        val presenceListener = object : ValueEventListener {
+            override fun onDataChange(s: DataSnapshot) {
+                present = s.children.mapNotNull { it.key }.toSet()
+                publish()
+            }
+
+            override fun onCancelled(e: DatabaseError) { /* keep last list */ }
+        }
+        usersRef.addValueEventListener(usersListener)
+        presenceRef.addValueEventListener(presenceListener)
+        awaitClose {
+            usersRef.removeEventListener(usersListener)
+            presenceRef.removeEventListener(presenceListener)
+        }
+    }
+
+    /**
+     * Check [password] for [userId] on the server. The password lives only
+     * in this call's parameter — it is never logged, never put in state,
+     * and gone when the call returns.
+     */
+    fun syncWithUser(userId: String, password: String) {
+        if (_syncState.value is SyncState.Checking) return
+        _syncState.value = SyncState.Checking
+        viewModelScope.launch {
+            val result = sync.verifySyncPassword(userId, password)
+            result.fold(
+                onSuccess = {
+                    _syncedWith.value = _activeUsers.value.firstOrNull { it.id == userId }
+                        ?: ActiveUser(id = userId, name = userId)
+                    _syncState.value = SyncState.Success
+                },
+                onFailure = { e ->
+                    _syncState.value =
+                        if (e.message == WRONG_PASSWORD_MESSAGE) SyncState.WrongPassword
+                        else SyncState.Error(e.message ?: "Something went wrong. Try again.")
+                }
+            )
+        }
+    }
+
+    /**
+     * Stop syncing. Local only: the server grant simply expires on its own,
+     * so this never writes to syncGrants (clients can't anyway).
+     */
+    fun stopSync() {
+        _syncedWith.value = null
+        setPartnerSeconds(null)
+        _syncState.value = SyncState.Idle
+    }
+
+    fun resetSyncState() {
+        _syncState.value = SyncState.Idle
     }
 
     fun setPhotoUri(uri: String?) {
@@ -140,9 +263,40 @@ class UserViewModel(
             UserViewModel(
                 container.prefs,
                 container.database.listenDao(),
-                container.connection
+                container.connection,
+                AuthRepository(FirebaseModule.auth),
+                SyncRepository(FirebaseModule.functions),
+                FirebaseModule.database
             ) as T
     }
+}
+
+
+// Matches SyncRepository's PERMISSION_DENIED message: this exact text means
+// "wrong password" as opposed to any other failure.
+private const val WRONG_PASSWORD_MESSAGE = "Incorrect password."
+
+
+private fun usersSnapshotToActiveUsers(
+    snapshot: DataSnapshot,
+    selfUid: String,
+    present: Set<String>
+): List<ActiveUser> {
+    @Suppress("UNCHECKED_CAST")
+    val raw = snapshot.value as? Map<String, Any?> ?: emptyMap()
+    return raw.mapNotNull { (id, value) ->
+        if (id == selfUid) return@mapNotNull null
+        val fields = value as? Map<String, Any?> ?: emptyMap()
+        val name = (fields["name"] as? String).orEmpty().ifBlank { id }
+        ActiveUser(
+            id = id,
+            name = name,
+            nowPlaying = fields["nowPlaying"] as? String,
+            isActive = id in present,
+            lastSeen = fields["lastSeen"] as? String,
+            photoUri = fields["photoUri"] as? String
+        )
+    }.sortedWith(compareByDescending<ActiveUser> { it.isActive }.thenBy { it.name })
 }
 
 

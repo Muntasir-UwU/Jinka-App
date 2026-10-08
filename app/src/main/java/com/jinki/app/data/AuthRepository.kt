@@ -28,12 +28,14 @@ class AuthRepository(private val auth: FirebaseAuth) {
     fun currentUid(): String? = auth.currentUser?.uid
 
     /** Sign in with email + password. Never stores the credentials. */
-    suspend fun signIn(email: String, password: String): Result<FirebaseUser> = try {
-        val user = auth.signInWithEmailAndPassword(email, password).await().user
-            ?: return Result.failure(IllegalStateException("Sign-in succeeded but returned no user."))
-        Result.success(user)
-    } catch (e: Exception) {
-        Result.failure(e)
+    suspend fun signIn(email: String, password: String): Result<FirebaseUser> {
+        return try {
+            val user = auth.signInWithEmailAndPassword(email, password).await().user
+                ?: return Result.failure(IllegalStateException("Sign-in succeeded but returned no user."))
+            Result.success(user)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
     }
 
     fun signOut() = auth.signOut()
