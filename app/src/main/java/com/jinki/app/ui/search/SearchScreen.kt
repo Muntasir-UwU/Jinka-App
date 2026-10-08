@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -28,7 +29,6 @@ import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -103,6 +103,10 @@ fun SearchScreen(viewModel: SearchViewModel, snackbar: SnackbarHostState) {
             modifier = Modifier
                 .fillMaxSize()
                 .background(ScreenBackground)
+                // adjustResize shrinks the window, but without imePadding the
+                // field and list sit under the keyboard frame on devices
+                // where the IME doesn't resize the app window.
+                .imePadding()
                 .padding(horizontal = 16.dp)
         ) {
             Spacer(Modifier.height(12.dp))

@@ -4,13 +4,16 @@ import com.jinki.app.data.Track
 import com.jinki.app.data.source.SOURCE_SOUNDCLOUD
 import com.jinki.app.data.source.SearchHit
 import com.jinki.app.data.source.isVideoId
+import java.util.Locale
 import kotlin.math.abs
 import kotlin.math.max
 
 
 fun normalizeArtworkText(value: String?): String =
     (value ?: "")
-        .lowercase()
+        // Matching keys, not display text: pin to ROOT so e.g. Turkish
+        // locale can't change which thumbnails match a track.
+        .lowercase(Locale.ROOT)
         .replace(PAREN_OR_BRACKET, " ")
         .replace(FILLER_WORDS, " ")
         .replace(NON_WORD, " ")

@@ -1,22 +1,14 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!--
+  Cleartext is forbidden everywhere (the manifest also sets
+  usesCleartextTraffic="false"), with system trust anchors only. There is
+  deliberately no per-domain section: the previous one listed wildcard
+  entries (`*.cdn.cloudflare.net`, `*.fastly.net`) that are not valid
+  <domain> values, and every host the app talks to serves HTTPS anyway.
+  If a cleartext host is ever needed, add a domain-config with a real
+  hostname and includeSubdomains="true" — never a leading "*." entry.
+-->
 <network-security-config>
-    <domain-config cleartextTrafficPermitted="false">
-        <domain includeSubdomains="true">googlevideo.com</domain>
-        <domain includeSubdomains="true">ytimg.com</domain>
-        <domain includeSubdomains="true">youtube.com</domain>
-        <domain includeSubdomains="true">youtube.googleapis.com</domain>
-        <domain includeSubdomains="true">soundcloud.com</domain>
-        <domain includeSubdomains="true">api.soundcloud.com</domain>
-        <domain includeSubdomains="true">sc-cdn.soundcloud.com</domain>
-        <domain includeSubdomains="true">i.ytimg.com</domain>
-        <domain includeSubdomains="true">img.youtube.com</domain>
-        <domain includeSubdomains="true">lh3.googleusercontent.com</domain>
-        <domain includeSubdomains="true">*.cdn.cloudflare.net</domain>
-        <domain includeSubdomains="true">*.fastly.net</domain>
-        <trust-anchors>
-            <certificates src="system" />
-        </trust-anchors>
-    </domain-config>
     <base-config cleartextTrafficPermitted="false">
         <trust-anchors>
             <certificates src="system" />

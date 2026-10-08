@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
 
 <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
@@ -12,8 +13,6 @@
     <!-- Expedited download work runs as a data-sync foreground service. -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
-    <!-- Foreground service for expedited work on Android 14+ -->
-    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SHORT_SERVICE" />
 
     <application
         android:name=".JinkiApplication"
@@ -61,11 +60,14 @@
         <!--
           DownloadWorker runs as expedited work with a foreground service.
           The dataSync foregroundServiceType is required for expedited work on Android 14+.
+          tools:node="merge" merges with the identical entry WorkManager
+          contributes, instead of creating a duplicate service element.
         -->
         <service
             android:name="androidx.work.impl.foreground.SystemForegroundService"
             android:exported="false"
-            android:foregroundServiceType="dataSync" />
+            android:foregroundServiceType="dataSync"
+            tools:node="merge" />
 
     </application>
 

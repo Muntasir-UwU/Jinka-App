@@ -51,7 +51,9 @@ class AppContainer(context: Context) {
 	val lyrics = LyricsRepository(
         dao = database.lyricsDao(),
         client = LrcLibClient(http),
-        scope = appScope
+        scope = appScope,
+        // Share the cached app client instead of the bare fallback client.
+        simpHttp = http
     )
     val connection = PlayerConnection(appContext, appScope, prefs, tracks, http)
     val downloads = DownloadManager(appContext, appScope, prefs)

@@ -54,6 +54,7 @@
     <string name="playback_error_connection_lost">Lost the connection. Check your network and try again.</string>
     <string name="playback_error_generic">Playback failed.</string>
     <string name="playback_error_skipped">“%1$s” — %2$s</string>
+    <string name="playback_error_background_start">Couldn\'t start playback in the background. Open the app and try again.</string>
 
     <!-- Library screen -->
     <string name="library_empty_body">No offline songs yet.\nFind something in Search and double-tap it to save it here.</string>

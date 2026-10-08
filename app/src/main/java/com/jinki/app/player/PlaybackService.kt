@@ -106,18 +106,27 @@ class PlaybackService : MediaSessionService() {
 
     override fun onDestroy() {
         persistJob?.cancel()
-        
-        
-        
-        serviceScope.launch(exceptionHandler) {
-            runCatching { listenTracker.flush() }
-            runCatching { persistResume() }
-        }
         runCatching { app.container.connection.sleepTimer.onElapsed = {} }
-        session?.release()
-        session = null
-        player.release()
-        serviceScope.cancel()
+        try {
+            // The scope is torn down below, so the final persist must finish
+            // first instead of racing serviceScope.cancel(). Bounded by
+            // FLUSH_TIMEOUT_MS: onDestroy runs on the main thread, and both
+            // calls switch off it internally (Room / withContext(IO)), so
+            // this cannot deadlock — it only caps how long destroy blocks.
+            runBlocking {
+                withTimeoutOrNull(FLUSH_TIMEOUT_MS) {
+                    runCatching { listenTracker.flush() }
+                    runCatching { persistResume() }
+                }
+            }
+        } catch (_: Exception) {
+            // Best effort: the process may be dying anyway.
+        } finally {
+            runCatching { session?.release() }
+            session = null
+            runCatching { player.release() }
+            serviceScope.cancel()
+        }
         super.onDestroy()
     }
 

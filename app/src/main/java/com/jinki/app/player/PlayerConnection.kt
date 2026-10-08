@@ -83,11 +83,23 @@ class PlayerConnection(
     private fun onController(command: (MediaController) -> Unit) {
         val c = controller
         if (c != null) {
-            command(c)
+            runCommand(c, command)
             return
         }
         if (pendingCommands.size >= MAX_PENDING_COMMANDS) pendingCommands.removeFirst()
         pendingCommands.addLast(command)
+    }
+
+    
+    private fun runCommand(c: MediaController, command: (MediaController) -> Unit) {
+        try {
+            command(c)
+        } catch (e: SecurityException) {
+            // Android 12+ throws ForegroundServiceStartNotAllowedException (a
+            // SecurityException) when playback would pull the service to the
+            // foreground from the background. Surface it, never crash on it.
+            notifyPlaybackError(context.getString(R.string.playback_error_background_start))
+        }
     }
 
     
@@ -293,7 +305,7 @@ class PlayerConnection(
         
         val queued = pendingCommands.toList()
         pendingCommands.clear()
-        queued.forEach { it(controller) }
+        queued.forEach { runCommand(controller, it) }
         syncSessionState()
         restartTicker()
         scope.launch { restoreLastTrack() }

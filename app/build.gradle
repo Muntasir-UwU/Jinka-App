@@ -2,6 +2,8 @@ plugins {
     id 'com.android.application'
     id 'org.jetbrains.kotlin.android'
     id 'com.google.devtools.ksp'
+    // Version comes from the root build.gradle (4.4.2 — VERIFY LATEST).
+    id 'com.google.gms.google-services'
 }
 
 android {
@@ -97,15 +99,10 @@ android {
         }
     }
 
-    dexOptions {
-        javaMaxHeapSize "2g"
-        preDexLibraries = true
-        maxProcessCount 2
-    }
 }
 
 dependencies {
-    coreLibraryDesugaring 'com.android.tools:desugar_jdk_libs:2.0.4'
+    coreLibraryDesugaring 'com.android.tools:desugar_jdk_libs:2.1.4'
 
     implementation 'androidx.core:core-ktx:1.13.1'
     implementation 'androidx.activity:activity-compose:1.9.0'
@@ -144,6 +141,15 @@ dependencies {
     implementation 'io.coil-kt:coil-compose:2.6.0'
 
     implementation 'com.github.TeamNewPipe:NewPipeExtractor:v0.26.5'
+
+    // Firebase. The BoM pins auth/database/functions to mutually
+    // compatible versions — only the BoM carries a version number.
+    // VERIFY LATEST: confirm 33.4.0 is still the newest in the Firebase Android release notes.
+    implementation platform('com.google.firebase:firebase-bom:33.4.0')
+    implementation 'com.google.firebase:firebase-auth'
+    implementation 'com.google.firebase:firebase-database'
+    implementation 'com.google.firebase:firebase-functions'
+    implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-play-services:1.8.1'
 
     testImplementation 'junit:junit:4.13.2'
     androidTestImplementation 'androidx.test.ext:junit:1.2.1'

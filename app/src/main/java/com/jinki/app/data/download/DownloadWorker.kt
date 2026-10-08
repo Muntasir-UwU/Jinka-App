@@ -2,6 +2,7 @@ package com.jinki.app.data.download
 
 import android.app.NotificationChannel
 import android.app.NotificationManager
+import android.content.pm.ServiceInfo
 import android.content.Context
 import android.os.Build
 import androidx.core.app.NotificationCompat
@@ -30,11 +31,13 @@ class DownloadWorker(context: Context, params: WorkerParameters) : CoroutineWork
 
     override suspend fun doWork(): Result {
         if (inputData.getString(KEY_STORAGE) == null) return Result.failure()
+        if (isStopped) return Result.retry()
         setForeground(getForegroundInfo())
         return try {
             val source = inputData.getString(KEY_SOURCE).orEmpty()
             val id = inputData.getString(KEY_ID).orEmpty()
             if (source.isBlank() || id.isBlank()) return Result.failure()
+            if (isStopped) return Result.retry()
             val stream = SourceRegistry.resolve(
                 SourceRef(source, id, inputData.getString(KEY_PAGE))
             )
@@ -48,6 +51,7 @@ class DownloadWorker(context: Context, params: WorkerParameters) : CoroutineWork
                 pageUrl = inputData.getString(KEY_PAGE)
             )
             val app = applicationContext as JinkiApplication
+            if (isStopped) return Result.retry()
             val file = fetchTrackToFile(
                 applicationContext,
                 app.container.http,
@@ -60,6 +64,11 @@ class DownloadWorker(context: Context, params: WorkerParameters) : CoroutineWork
             TrackRepository(db.libraryDao(), db.playbackDao()).save(track, file.absolutePath)
             Result.success(workDataOf(OUT_BYTES to file.length(), OUT_TOTAL to file.length()))
         } catch (e: CancellationException) {
+            // Stop, timeout (Android 15 caps dataSync foreground work at ~6h),
+            // or an explicit cancel. A cancelled worker ignores the returned
+            // result and stays cancelled; a stopped one reschedules and the
+            // next attempt re-resolves and resumes the same file.
+            if (isStopped && runAttemptCount < MAX_ATTEMPTS - 1) return Result.retry()
             throw e
         } catch (e: SourceException) {
             Result.failure(workDataOf(OUT_ERROR to (e.message ?: "Download failed.")))
@@ -103,7 +112,18 @@ class DownloadWorker(context: Context, params: WorkerParameters) : CoroutineWork
             .build()
         val id = NOTIFICATION_BASE_ID +
             ((inputData.getString(KEY_STORAGE)?.hashCode() ?: 0) and 0xFFF)
-        return ForegroundInfo(id, notification)
+        // Android 14 requires the foreground-service type up front. The
+        // 3-arg overload exists from 29, so gate on Q to stay correct on 24
+        // through 35 with one code path.
+        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            ForegroundInfo(
+                id,
+                notification,
+                ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC
+            )
+        } else {
+            ForegroundInfo(id, notification)
+        }
     }
 }
 

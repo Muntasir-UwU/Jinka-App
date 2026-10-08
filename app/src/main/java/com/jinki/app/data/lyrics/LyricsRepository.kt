@@ -4,6 +4,7 @@ import android.util.Log
 import com.jinki.app.data.LyricsCacheEntry
 import com.jinki.app.data.LyricsDao
 import com.jinki.app.data.Track
+import java.util.Locale
 import java.util.concurrent.ConcurrentHashMap
 import kotlin.math.abs
 import kotlinx.coroutines.CancellationException
@@ -18,13 +19,15 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.withContext
+import okhttp3.OkHttpClient
 
 class LyricsRepository(
     private val dao: LyricsDao,
     private val client: LrcLibClient,
     private val scope: CoroutineScope,
     private val io: CoroutineDispatcher = Dispatchers.IO,
-    private val simpMusic: SimpMusicClient = SimpMusicClient(LrcLibClient.defaultHttpClient()),
+    simpHttp: OkHttpClient? = null,
+    private val simpMusic: SimpMusicClient = SimpMusicClient(simpHttp ?: LrcLibClient.defaultHttpClient()),
     private val clock: () -> Long = System::currentTimeMillis
 ) {
 
@@ -39,7 +42,9 @@ class LyricsRepository(
         normalize(track.artist) + "|" + normalize(track.title)
 
     private fun normalize(value: String?): String =
-        value.orEmpty().trim().lowercase().replace(WHITESPACE, " ")
+        // Cache keys must be locale-independent: default-locale lowercasing
+        // (Turkish dotted-I and friends) would split one track into two keys.
+        value.orEmpty().trim().lowercase(Locale.ROOT).replace(WHITESPACE, " ")
 
     fun peek(track: Track): Lyrics? = _cache.value[storeKeyFor(track)]
 
@@ -232,7 +237,7 @@ class LyricsRepository(
     )
 
     private fun looseKey(value: String): String =
-        value.lowercase().filter { it.isLetterOrDigit() }
+        value.lowercase(Locale.ROOT).filter { it.isLetterOrDigit() }
 
     private fun titleMatches(candidate: String, wanted: String): Boolean {
         val c = looseKey(candidate)

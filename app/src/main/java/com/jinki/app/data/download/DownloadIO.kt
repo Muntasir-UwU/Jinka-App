@@ -8,9 +8,11 @@ import com.jinki.app.data.source.EXTRACTION_USER_AGENT
 import java.io.File
 import java.io.FileOutputStream
 import java.io.IOException
+import java.util.Locale
 import java.util.concurrent.atomic.AtomicReference
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.ensureActive
 import okhttp3.Call
 import okhttp3.OkHttpClient
 import okhttp3.Request
@@ -37,6 +39,9 @@ internal suspend fun fetchTrackToFile(
             var lastPct = -1
             var firstChunk = true
             while (true) {
+                // Abort promptly on worker stop/timeout instead of draining a
+                // 1 MB chunk first; the next attempt resumes the same file.
+                coroutineContext.ensureActive()
                 val googleVideo = isGoogleVideo(track.streamUrl)
                 
                 val clen = if (googleVideo) {
@@ -134,7 +139,7 @@ private fun isGoogleVideo(url: String): Boolean = "googlevideo.com" in url
 
 
 private fun guardContentType(contentType: String) {
-    val type = contentType.lowercase()
+    val type = contentType.lowercase(Locale.ROOT)
     if (type.startsWith("text/") || "mpegurl" in type) {
         throw IOException("Not a playable audio file.")
     }
@@ -148,7 +153,7 @@ private fun fileExtension(suffix: String?, contentType: String): String {
 
 
 internal fun extensionFor(contentType: String): String {
-    val type = contentType.lowercase()
+    val type = contentType.lowercase(Locale.ROOT)
     return when {
         "webm" in type || "opus" in type -> ".webm"
         "mpeg" in type || "mp3" in type -> ".mp3"
