@@ -20,6 +20,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
 import com.jinki.app.R
+import com.jinki.app.data.lyrics.LrcParser
 import com.jinki.app.data.lyrics.Lyrics
 import com.jinki.app.ui.components.LyricsSheetContent
 import com.jinki.app.ui.waveform.generateWaveformHeights
@@ -32,10 +33,20 @@ fun NowPlayingRoute(viewModel: NowPlayingViewModel, onCollapse: () -> Unit) {
     val favorites by viewModel.favorites.collectAsStateWithLifecycle()
     val lastResults by viewModel.lastSearchResults.collectAsStateWithLifecycle()
     val queue by viewModel.queue.collectAsStateWithLifecycle()
+    val lyricsOffsetMs by viewModel.lyricsOffset.collectAsStateWithLifecycle()
 
     LaunchedEffect(track?.storageKey) {
-        track?.let { viewModel.requestLyrics(it) }
+        // Player duration makes lrclib's exact lookup match (it needs the
+        // track length within ~2 seconds) and ranks search results by it.
+        val durationSeconds = (player.durationMs / 1000.0).takeIf { player.durationMs > 0 }
+        track?.let { viewModel.requestLyrics(it, durationSeconds) }
     }
+
+    val cachedLyrics = track?.let { lyricsCache[viewModel.lyricsKey(it)] }
+    val timedLines = remember(cachedLyrics) {
+        (cachedLyrics as? Lyrics.Synced)?.let { LrcParser.retime(it.lines) } ?: emptyList()
+    }
+    val plainLyrics = (cachedLyrics as? Lyrics.Plain)?.text
 
     val bars = remember(track) {
         track?.let { t ->
@@ -64,6 +75,13 @@ fun NowPlayingRoute(viewModel: NowPlayingViewModel, onCollapse: () -> Unit) {
             waveform = bars,
             queue = queue,
             currentIndex = queue.indexOfFirst { it.id == track?.storageKey },
+            lyricsLines = timedLines,
+            lyricsPlain = plainLyrics,
+            lyricsPositionMs = player.positionMs,
+            lyricsPlaying = player.isPlaying,
+            lyricsBuffering = player.isBuffering,
+            lyricsSpeed = player.playbackSpeed,
+            lyricsOffsetMs = lyricsOffsetMs,
         ),
         actions = NowPlayingActions(
             onCollapse = onCollapse,
@@ -79,13 +97,16 @@ fun NowPlayingRoute(viewModel: NowPlayingViewModel, onCollapse: () -> Unit) {
             onQueueItemClick = { viewModel.playQueueItem(it) },
             onQueueRemove = { viewModel.removeFromQueue(it) },
             onQueueMove = { from, to -> viewModel.moveInQueue(from, to) },
+            onLyricSeekMs = { ms -> viewModel.connection.seekTo(ms) },
+            onLyricsOffset = { deltaMs -> viewModel.adjustLyricsOffset(deltaMs) },
         ),
         lyricsContent = {
             if (track != null) {
                 LyricsSheetContent(
                     title = track.title,
                     lyrics = lyricsCache[viewModel.lyricsKey(track)] ?: Lyrics.Loading,
-                    positionSeconds = player.positionMs / 1000.0
+                    positionSeconds = player.positionMs / 1000.0,
+                    debugTrace = viewModel.lyricsDebug.collectAsStateWithLifecycle().value
                 )
             }
         },

@@ -20,18 +20,27 @@ class SimpMusicClient(
     private val blockedUntil = AtomicLong(0L)
 
     
-    suspend fun search(query: String, limit: Int = DEFAULT_LIMIT): SourceReply<List<LrcLibTrack>> =
-        request("v1/search", "q", query, limit)
+    suspend fun search(
+        query: String,
+        limit: Int = DEFAULT_LIMIT,
+        onHttp: HttpDebug? = null
+    ): SourceReply<List<LrcLibTrack>> =
+        request("v1/search", "q", query, limit, onHttp)
 
     
-    suspend fun searchByTitle(title: String, limit: Int = DEFAULT_LIMIT): SourceReply<List<LrcLibTrack>> =
-        request("v1/search/title", "title", title, limit)
+    suspend fun searchByTitle(
+        title: String,
+        limit: Int = DEFAULT_LIMIT,
+        onHttp: HttpDebug? = null
+    ): SourceReply<List<LrcLibTrack>> =
+        request("v1/search/title", "title", title, limit, onHttp)
 
     private suspend fun request(
         path: String,
         param: String,
         value: String,
-        limit: Int
+        limit: Int,
+        onHttp: HttpDebug? = null
     ): SourceReply<List<LrcLibTrack>> = withContext(io) {
         if (clock() < blockedUntil.get()) return@withContext SourceReply.Failure
 
@@ -41,9 +50,7 @@ class SimpMusicClient(
             .addQueryParameter("limit", limit.toString())
             .build()
 
-        httpClient.fetchText(url) { retryAfterSeconds ->
-            blockedUntil.set(clock() + retryAfterSeconds * 1000L)
-        }.parse<List<LrcLibTrack>> { body -> parseEnvelope(body) }
+        httpClient.fetchText(url, onRateLimited = { retryAfterSeconds -> blockedUntil.set(clock() + retryAfterSeconds * 1000L) }, onHttp = onHttp).parse<List<LrcLibTrack>> { body -> parseEnvelope(body) }
     }
 
     private fun parseEnvelope(body: String): SourceReply<List<LrcLibTrack>> {

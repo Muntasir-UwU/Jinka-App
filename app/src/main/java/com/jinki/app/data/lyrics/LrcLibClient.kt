@@ -32,10 +32,11 @@ class LrcLibClient(
         trackName: String,
         artistName: String,
         albumName: String? = null,
-        durationSeconds: Double? = null
+        durationSeconds: Double? = null,
+        onHttp: HttpDebug? = null
     ): SourceReply<LrcLibTrack> = withContext(io) {
         val url = baseUrl.newBuilder()
-            .addPathSegments("api/get")
+            .addPathSegments("get")
             .addQueryParameter("track_name", trackName)
             .addQueryParameter("artist_name", artistName)
             .apply {
@@ -45,7 +46,7 @@ class LrcLibClient(
                 }
             }
             .build()
-        httpClient.fetchText(url).parse<LrcLibTrack> { body ->
+        httpClient.fetchText(url, onHttp = onHttp).parse<LrcLibTrack> { body ->
             val obj = runCatching { JSONObject(body) }.getOrNull()
                 ?: return@parse SourceReply.Failure
             parseTrack(obj)?.let { SourceReply.Hit(it) } ?: SourceReply.Miss
@@ -53,23 +54,40 @@ class LrcLibClient(
     }
 
     
-    suspend fun searchByNames(trackName: String, artistName: String): SourceReply<List<LrcLibTrack>> =
-        search {
+    suspend fun searchByNames(
+        trackName: String,
+        artistName: String,
+        onHttp: HttpDebug? = null
+    ): SourceReply<List<LrcLibTrack>> =
+        search(onHttp) {
             addQueryParameter("track_name", trackName)
             addQueryParameter("artist_name", artistName)
         }
 
-    
-    suspend fun searchByQuery(query: String): SourceReply<List<LrcLibTrack>> =
-        search { addQueryParameter("q", query) }
+    /** Title-only search: the artist field can't be trusted (channels/labels). */
+    suspend fun searchByTitleName(
+        trackName: String,
+        onHttp: HttpDebug? = null
+    ): SourceReply<List<LrcLibTrack>> =
+        search(onHttp) { addQueryParameter("track_name", trackName) }
 
-    private suspend fun search(block: HttpUrl.Builder.() -> Unit): SourceReply<List<LrcLibTrack>> =
+    
+    suspend fun searchByQuery(
+        query: String,
+        onHttp: HttpDebug? = null
+    ): SourceReply<List<LrcLibTrack>> =
+        search(onHttp) { addQueryParameter("q", query) }
+
+    private suspend fun search(
+        onHttp: HttpDebug? = null,
+        block: HttpUrl.Builder.() -> Unit
+    ): SourceReply<List<LrcLibTrack>> =
         withContext(io) {
             val url = baseUrl.newBuilder()
-                .addPathSegments("api/search")
+                .addPathSegments("search")
                 .apply(block)
                 .build()
-            when (val reply = httpClient.fetchText(url)) {
+            when (val reply = httpClient.fetchText(url, onHttp = onHttp)) {
                 
                 SourceReply.Miss -> SourceReply.Hit(emptyList<LrcLibTrack>())
                 SourceReply.Failure -> SourceReply.Failure

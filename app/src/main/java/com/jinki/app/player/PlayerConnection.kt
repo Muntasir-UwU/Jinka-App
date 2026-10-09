@@ -261,8 +261,8 @@ class PlayerConnection(
     }
 
     
-    fun notifyPlaybackError(message: String, skippedTitle: String? = null) {
-        val error = PlaybackError(message = message, skippedTitle = skippedTitle)
+    fun notifyPlaybackError(message: String, skippedTitle: String? = null, errorClass: String? = null) {
+        val error = PlaybackError(message = message, skippedTitle = skippedTitle, errorClass = errorClass)
         _state.value = _state.value.copy(error = message)
         scope.launch { _playbackErrors.emit(error) }
     }
@@ -409,6 +409,7 @@ class PlayerConnection(
             durationMs = c.duration.coerceAtLeast(0L),
             repeatMode = RepeatMode.fromExo(c.repeatMode),
             shuffleEnabled = c.shuffleModeEnabled,
+            playbackSpeed = c.playbackParameters.speed,
             isConnected = true,
             
             
@@ -463,6 +464,7 @@ data class PlayerUiState(
     val durationMs: Long = 0L,
     val repeatMode: RepeatMode = RepeatMode.OFF,
     val shuffleEnabled: Boolean = false,
+    val playbackSpeed: Float = 1f,
     val isConnected: Boolean = false,
     val canGoNext: Boolean = false,
     val canGoPrevious: Boolean = false,
@@ -476,5 +478,7 @@ data class PlayerUiState(
 data class PlaybackError(
     val message: String,
     
-    val skippedTitle: String? = null
+    val skippedTitle: String? = null,
+    // TEMP DEBUG AID — remove after diagnosing the "no track" issue.
+    val errorClass: String? = null
 )

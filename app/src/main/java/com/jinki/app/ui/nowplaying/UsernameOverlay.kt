@@ -25,6 +25,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -52,6 +53,11 @@ private const val MAX_NAME = 20
 /**
  * Full-screen, non-dismissible "what should we call you?" overlay.
  * Draw it AFTER (on top of) the screen it covers.
+ *
+ * @param statusText small line under the field while saving (e.g.
+ * "Connecting…"); replaces the character counter, never the error text.
+ * @param initialName prefill for a name that was saved but never confirmed
+ * (app killed mid-upload). Null/blank starts with an empty editable field.
  */
 @Composable
 fun UsernameOverlay(
@@ -59,10 +65,15 @@ fun UsernameOverlay(
     modifier: Modifier = Modifier,
     isSaving: Boolean = false,
     errorText: String? = null,
+    statusText: String? = null,
+    initialName: String? = null,
 ) {
-    var name by rememberSaveable { mutableStateOf("") }
+    var name by rememberSaveable(initialName) { mutableStateOf(initialName.orEmpty()) }
+    // Fresh installs start typing at once; a prefilled name (reconnecting
+    // after a kill) stays locked until "Change name" is tapped.
+    var editing by rememberSaveable(initialName) { mutableStateOf(initialName.isNullOrBlank()) }
     val trimmed = name.trim()
-    val canSubmit = trimmed.isNotEmpty() && !isSaving
+    val canSubmit = trimmed.isNotEmpty() && (!isSaving || editing)
 
     // No way out without a name: swallow back presses and taps behind.
     BackHandler(enabled = true) { }
@@ -129,11 +140,14 @@ fun UsernameOverlay(
                         if (new.length <= MAX_NAME) name = new.replace("\n", "")
                     },
                     singleLine = true,
-                    enabled = !isSaving,
+                    enabled = !isSaving || editing,
                     placeholder = { Text("Your name", color = UoCream.copy(alpha = 0.4f)) },
                     supportingText = {
+                        // While saving, the status line replaces the counter.
+                        val support = errorText
+                            ?: if (isSaving) statusText else null
                         Text(
-                            errorText ?: "${trimmed.length}/$MAX_NAME",
+                            support ?: "${trimmed.length}/$MAX_NAME",
                             color = if (errorText != null) MaterialTheme.colorScheme.error
                             else UoCream.copy(alpha = 0.5f),
                         )
@@ -144,7 +158,7 @@ fun UsernameOverlay(
                         imeAction = ImeAction.Done,
                     ),
                     keyboardActions = KeyboardActions(
-                        onDone = { if (canSubmit) onSubmit(trimmed) }
+                        onDone = { if (canSubmit) { editing = false; onSubmit(trimmed) } }
                     ),
                     shape = RoundedCornerShape(16.dp),
                     colors = OutlinedTextFieldDefaults.colors(
@@ -159,7 +173,7 @@ fun UsernameOverlay(
                 )
 
                 Button(
-                    onClick = { onSubmit(trimmed) },
+                    onClick = { editing = false; onSubmit(trimmed) },
                     enabled = canSubmit,
                     shape = RoundedCornerShape(16.dp),
                     colors = ButtonDefaults.buttonColors(
@@ -172,7 +186,7 @@ fun UsernameOverlay(
                         .fillMaxWidth()
                         .height(52.dp),
                 ) {
-                    if (isSaving) {
+                    if (isSaving && !editing) {
                         CircularProgressIndicator(
                             modifier = Modifier.size(22.dp),
                             strokeWidth = 2.dp,
@@ -180,6 +194,11 @@ fun UsernameOverlay(
                         )
                     } else {
                         Text("Continue", fontSize = 16.sp, fontWeight = FontWeight.Medium)
+                    }
+                }
+                if (isSaving && !editing) {
+                    TextButton(onClick = { editing = true }) {
+                        Text("Change name", color = UoCream.copy(alpha = 0.7f))
                     }
                 }
             }

@@ -17,10 +17,12 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.Orientation
+import androidx.compose.foundation.gestures.animateScrollBy
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.draggable
 import androidx.compose.foundation.gestures.rememberDraggableState
+import androidx.compose.foundation.interaction.DragInteraction
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -35,8 +37,11 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -62,14 +67,19 @@ import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -116,7 +126,10 @@ import androidx.compose.ui.semantics.customActions
 import androidx.compose.ui.semantics.semantics
 import coil.compose.AsyncImage
 import com.jinki.app.R
+import com.jinki.app.data.lyrics.LrcParser
+import com.jinki.app.data.lyrics.TimedLyricLine
 import com.jinki.app.ui.LocalPlayerContentPadding
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 
@@ -326,7 +339,17 @@ fun NowPlayingScreen(
                     )
                 SheetKind.Lyrics ->
                     if (lyricsContent != null) lyricsContent()
-                    else LyricsContent(state.lyrics, state.activeLyricIndex, actions.onLyricClick)
+                    else LyricsContent(
+                        lines = state.lyricsLines,
+                        plainText = state.lyricsPlain,
+                        positionMs = state.lyricsPositionMs,
+                        isPlaying = state.lyricsPlaying,
+                        isBuffering = state.lyricsBuffering,
+                        speed = state.lyricsSpeed,
+                        offsetMs = state.lyricsOffsetMs,
+                        onSeekToMs = actions.onLyricSeekMs,
+                        onOffsetDelta = actions.onLyricsOffset,
+                    )
             }
         }
 
@@ -922,44 +945,247 @@ private fun QueueRow(
     }
 }
 
+private const val LYRIC_LOOKAHEAD_MS = 250L
+private const val LYRIC_RESYNC_MS = 150L
+private const val LYRIC_SCROLL_MS = 400
+private const val LYRIC_FADE_MS = 300
+private const val LYRIC_SUPPRESS_TIMEOUT_NS = 2_000_000_000L
+private const val LYRIC_RESUME_AFTER_MANUAL_MS = 3000L
+private const val LYRIC_OFFSET_STEP_MS = 50L
+
+
+private data class LyricVis(val active: Boolean, val distance: Int)
+
+
 @Composable
-private fun LyricsContent(lyrics: List<String>, activeLyricIndex: Int, onClick: (Int) -> Unit) {
-    if (lyrics.isEmpty()) {
-        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            Text(
-                "No lyrics",
-                fontSize = 14.sp,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+private fun LyricsContent(
+    lines: List<TimedLyricLine>,
+    plainText: String?,
+    positionMs: Long,
+    isPlaying: Boolean,
+    isBuffering: Boolean,
+    speed: Float,
+    offsetMs: Long,
+    onSeekToMs: (Long) -> Unit,
+    onOffsetDelta: (Long) -> Unit,
+) {
+    Column(Modifier.fillMaxSize()) {
+        if (lines.isNotEmpty()) {
+            LyricsOffsetHeader(offsetMs = offsetMs, onDelta = onOffsetDelta)
+        }
+        when {
+            plainText != null -> Box(
+                Modifier
+                    .fillMaxSize()
+                    .verticalScroll(rememberScrollState())
+                    .padding(horizontal = 24.dp, vertical = 16.dp),
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(
+                    text = plainText,
+                    fontFamily = FontFamily.Serif,
+                    fontSize = 20.sp,
+                    lineHeight = 30.sp,
+                    textAlign = TextAlign.Center,
+                    color = MaterialTheme.colorScheme.onSurface,
+                )
+            }
+
+            lines.isEmpty() -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                Text(
+                    "No lyrics",
+                    fontSize = 14.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+
+            else -> SyncedLyricsList(
+                lines = lines,
+                positionMs = positionMs,
+                isPlaying = isPlaying,
+                isBuffering = isBuffering,
+                speed = speed,
+                offsetMs = offsetMs,
+                onSeekToMs = onSeekToMs,
             )
         }
-        return
+    }
+}
+
+
+@Composable
+private fun LyricsOffsetHeader(offsetMs: Long, onDelta: (Long) -> Unit) {
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp),
+        horizontalArrangement = Arrangement.Center,
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        TextButton(onClick = { onDelta(-LYRIC_OFFSET_STEP_MS) }) {
+            Text("−", color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+        Text(
+            text = (if (offsetMs >= 0) "+" else "") + "${offsetMs}ms",
+            fontSize = 12.sp,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        TextButton(onClick = { onDelta(LYRIC_OFFSET_STEP_MS) }) {
+            Text("+", color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+    }
+}
+
+
+@Composable
+private fun SyncedLyricsList(
+    lines: List<TimedLyricLine>,
+    positionMs: Long,
+    isPlaying: Boolean,
+    isBuffering: Boolean,
+    speed: Float,
+    offsetMs: Long,
+    onSeekToMs: (Long) -> Unit,
+) {
+    val listState = rememberLazyListState()
+
+    // Frame clock: interpolates between the 500 ms player ticks at playback
+    // speed, re-anchoring whenever the real position jumps (>150 ms: seek,
+    // buffering, speed change). Frozen while paused/buffering.
+    var clockMs by remember(lines) { mutableLongStateOf(positionMs) }
+    var anchorMs by remember(lines) { mutableLongStateOf(positionMs) }
+    var anchorNanos by remember(lines) { mutableLongStateOf(0L) }
+    var lastFrameNanos by remember(lines) { mutableLongStateOf(0L) }
+    var suppressResync by remember(lines) { mutableStateOf(false) }
+
+    val baseRef = rememberUpdatedState(positionMs)
+    val speedRef = rememberUpdatedState(speed)
+    // Hoisted so the per-frame loop allocates nothing.
+    val nextFrame: (Long) -> Long = remember { { t: Long -> t } }
+
+    val playing = isPlaying && !isBuffering
+    LaunchedEffect(lines, playing) {
+        if (!playing) {
+            clockMs = baseRef.value
+            return@LaunchedEffect
+        }
+        anchorMs = baseRef.value
+        anchorNanos = withFrameNanos(nextFrame)
+        suppressResync = false
+        while (isActive) {
+            val f = withFrameNanos(nextFrame)
+            lastFrameNanos = f
+            val fresh = baseRef.value
+            val sp = speedRef.value
+            if (suppressResync) {
+                // Tap-seek in flight: hold our jump until the player catches
+                // up (or 2 s pass), instead of snapping back to stale data.
+                if (abs(fresh - anchorMs) < LYRIC_RESYNC_MS ||
+                    f - anchorNanos > LYRIC_SUPPRESS_TIMEOUT_NS
+                ) {
+                    suppressResync = false
+                } else {
+                    clockMs = anchorMs
+                    continue
+                }
+            }
+            val predicted = anchorMs + ((f - anchorNanos) / 1_000_000.0 * sp).toLong()
+            if (abs(fresh - predicted) > LYRIC_RESYNC_MS) {
+                anchorMs = fresh
+                anchorNanos = f
+                clockMs = fresh
+            } else {
+                anchorMs = fresh
+                anchorNanos = f
+                clockMs = predicted
+            }
+        }
+    }
+
+    val activeIdx = remember(lines, offsetMs) {
+        derivedStateOf { LrcParser.activeIndexMs(lines, clockMs + LYRIC_LOOKAHEAD_MS + offsetMs) }
+    }
+    // Stable holder: item scopes read through this so they never capture a
+    // stale active-index state across track changes.
+    val activeRef = rememberUpdatedState(activeIdx)
+    val active = activeIdx.value
+
+    var jumpToken by remember(lines) { mutableIntStateOf(0) }
+    var lastJumpToken by remember(lines) { mutableIntStateOf(0) }
+    var interacting by remember(lines) { mutableStateOf(false) }
+
+    // Pause auto-scroll while the user drags; resume 3 s after release.
+    // DragInteraction fires for user gestures only, not programmatic scrolls.
+    LaunchedEffect(listState, lines) {
+        var resume: Job? = null
+        try {
+            listState.interactionSource.interactions.collect { interaction ->
+                when (interaction) {
+                    is DragInteraction.Start -> {
+                        resume?.cancel()
+                        interacting = true
+                    }
+
+                    is DragInteraction.Stop, is DragInteraction.Cancel -> {
+                        resume?.cancel()
+                        resume = launch {
+                            delay(LYRIC_RESUME_AFTER_MANUAL_MS)
+                            interacting = false
+                        }
+                    }
+                }
+            }
+        } finally {
+            resume?.cancel()
+        }
+    }
+
+    LaunchedEffect(active, jumpToken, interacting, lines) {
+        if (active !in lines.indices) return@LaunchedEffect
+        if (interacting) return@LaunchedEffect
+        val snap = jumpToken != lastJumpToken
+        if (snap) lastJumpToken = jumpToken
+        centerLyric(listState, active, animate = !snap)
+    }
+
+    // New track: back to the top instead of animating from far away.
+    LaunchedEffect(lines) {
+        if (lines.isNotEmpty()) listState.scrollToItem(0)
     }
 
     BoxWithConstraints(Modifier.fillMaxSize()) {
-        val listState = rememberLazyListState()
         val edgePad = (maxHeight / 2 - 24.dp).coerceAtLeast(0.dp)
-
-        LaunchedEffect(activeLyricIndex) {
-            if (activeLyricIndex in lyrics.indices) listState.animateScrollToItem(activeLyricIndex)
-        }
 
         LazyColumn(
             Modifier.fillMaxSize(),
             state = listState,
             contentPadding = PaddingValues(top = edgePad, bottom = edgePad),
         ) {
-            itemsIndexed(lyrics) { index, line ->
-                val distance = if (activeLyricIndex < 0) 1 else abs(index - activeLyricIndex)
-                val target = when (distance) {
+            itemsIndexed(lines, key = { index, line -> "$index-${line.timeMs}" }) { index, line ->
+                // Per-item derived state: only lines whose active/distance
+                // bucket actually changes recompose, not the whole list.
+                val vis by remember(line.timeMs, index) {
+                    derivedStateOf {
+                        val a = activeRef.value.value
+                        LyricVis(a == index, if (a < 0) 1 else abs(index - a))
+                    }
+                }
+                val target = when (vis.distance) {
                     0 -> 1f
                     1 -> 0.55f
                     2 -> 0.35f
                     else -> 0.22f
                 }
-                val alpha by animateFloatAsState(target, label = "lyricAlpha")
-                val scale by animateFloatAsState(if (distance == 0) 1f else 0.92f, label = "lyricScale")
+                // A line going active tweens 0.55 -> 1.0 over its first
+                // 300 ms, which reads as a brightness fade-in.
+                val alpha by animateFloatAsState(target, tween(LYRIC_FADE_MS), label = "lyricAlpha")
+                val scale by animateFloatAsState(
+                    targetValue = if (vis.active) 1f else 0.92f,
+                    animationSpec = tween(LYRIC_FADE_MS),
+                    label = "lyricScale",
+                )
                 Text(
-                    text = line,
+                    text = line.text,
                     fontFamily = FontFamily.Serif,
                     fontWeight = FontWeight.SemiBold,
                     fontSize = 22.sp,
@@ -969,11 +1195,38 @@ private fun LyricsContent(lyrics: List<String>, activeLyricIndex: Int, onClick: 
                     modifier = Modifier
                         .fillMaxWidth()
                         .graphicsLayer { scaleX = scale; scaleY = scale }
-                        .clickable { onClick(index) }
+                        .clickable {
+                            onSeekToMs(line.timeMs)
+                            anchorMs = line.timeMs
+                            anchorNanos = lastFrameNanos
+                            suppressResync = true
+                            clockMs = line.timeMs
+                            jumpToken++
+                        }
                         .padding(horizontal = 24.dp, vertical = 10.dp),
                 )
             }
         }
+    }
+}
+
+
+/** Centers [index] in the viewport; jumps if it isn't currently visible. */
+private suspend fun centerLyric(listState: LazyListState, index: Int, animate: Boolean) {
+    val seen = listState.layoutInfo.visibleItemsInfo.firstOrNull { it.index == index }
+    if (seen == null) {
+        listState.scrollToItem(index)
+        withFrameNanos { }
+    }
+    val info = listState.layoutInfo
+    val item = info.visibleItemsInfo.firstOrNull { it.index == index } ?: return
+    val center = (info.viewportStartOffset + info.viewportEndOffset) / 2f
+    val delta = item.offset + item.size / 2f - center
+    if (abs(delta) < 0.5f) return
+    if (animate) {
+        listState.animateScrollBy(delta, tween(LYRIC_SCROLL_MS, easing = FastOutSlowInEasing))
+    } else {
+        listState.scrollBy(delta)
     }
 }
 

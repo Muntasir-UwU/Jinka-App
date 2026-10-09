@@ -3,26 +3,33 @@
     "users": {
       ".read": "auth != null",
       "$uid": {
-        ".write": "auth != null && (auth.uid === $uid || auth.token.admin === true)"
+        ".write": "auth != null && auth.uid === $uid",
+        "name": {
+          ".validate": "newData.isString() && newData.val().length >= 1 && newData.val().length <= 20"
+        },
+        "avatar": {
+          ".validate": "newData.isString() && newData.val().length < 20000"
+        },
+        "avatarUpdatedAt": {
+          ".validate": "newData.isNumber()"
+        }
       }
     },
     "presence": {
       ".read": "auth != null",
       "$uid": {
-        ".write": "auth != null && auth.uid === $uid"
+        ".write": "auth != null && auth.uid === $uid",
+        "nowPlaying": {
+          ".validate": "newData.isString() && newData.val().length <= 120 || newData.val() == null"
+        }
       }
     },
-    "playback": {
-      "$uid": {
-        ".read": "auth != null && (auth.uid === $uid || root.child('syncGrants').child($uid).child(auth.uid).child('expiresAt').val() > now)",
-        ".write": "auth != null && auth.uid === $uid"
-      }
-    },
-    "syncGrants": {
-      "$target": {
-        "$viewer": {
-          ".read": "auth != null && (auth.uid === $target || auth.uid === $viewer)",
-          ".write": false
+    "pokes": {
+      "$toUid": {
+        ".read": "auth != null && auth.uid === $toUid",
+        "$pushId": {
+          ".write": "auth != null && ((newData.exists() && newData.child('from').val() === auth.uid) || (!newData.exists() && auth.uid === $toUid))",
+          ".validate": "!newData.exists() || (newData.hasChildren(['from', 'fromName', 'at']) && newData.child('fromName').isString() && newData.child('fromName').val().length <= 40 && newData.child('at').isNumber())"
         }
       }
     },

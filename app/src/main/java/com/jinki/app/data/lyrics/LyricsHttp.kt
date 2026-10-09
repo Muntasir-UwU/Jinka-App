@@ -28,6 +28,9 @@ sealed interface SourceReply<out T> {
 internal const val USER_AGENT = "Jinki/1.0 (Android)"
 private const val DEFAULT_RETRY_AFTER_SECONDS = 60L
 
+/** Reports one lyrics HTTP call: full URL and status (null = no response). */
+internal typealias HttpDebug = (url: String, httpStatus: Int?) -> Unit
+
 
 internal inline fun <T> SourceReply<String>.parse(
     transform: (String) -> SourceReply<T>
@@ -54,7 +57,8 @@ private suspend fun Call.await(): Response = suspendCancellableCoroutine { cont 
 
 internal suspend fun OkHttpClient.fetchText(
     url: HttpUrl,
-    onRateLimited: ((retryAfterSeconds: Long) -> Unit)? = null
+    onRateLimited: ((retryAfterSeconds: Long) -> Unit)? = null,
+    onHttp: HttpDebug? = null
 ): SourceReply<String> {
     val request = Request.Builder()
         .url(url)
@@ -63,6 +67,7 @@ internal suspend fun OkHttpClient.fetchText(
         .build()
     return try {
         newCall(request).await().use<Response, SourceReply<String>> { response ->
+            onHttp?.invoke(url.toString(), response.code)
             when {
                 response.isSuccessful -> {
                     val body = response.body?.string()
@@ -83,6 +88,7 @@ internal suspend fun OkHttpClient.fetchText(
     } catch (e: CancellationException) {
         throw e
     } catch (_: Exception) {
+        onHttp?.invoke(url.toString(), null)
         SourceReply.Failure
     }
 }

@@ -1,10 +1,13 @@
 package com.jinki.app
 
 import android.content.Context
+import com.jinki.app.data.AuthRepository
 import com.jinki.app.data.JinkaDatabase
 import com.jinki.app.data.PlaylistRepository
 import com.jinki.app.data.TrackRepository
 import com.jinki.app.data.UserPrefs
+import com.jinki.app.di.FirebaseModule
+import com.jinki.app.util.ConnectivityObserver
 import com.jinki.app.data.download.DownloadManager
 import com.jinki.app.data.lyrics.LrcLibClient
 import com.jinki.app.data.lyrics.LyricsRepository
@@ -29,6 +32,10 @@ class AppContainer(context: Context) {
 
     val database: JinkaDatabase = JinkaDatabase.get(appContext)
     val prefs = UserPrefs(appContext)
+    val auth = AuthRepository(FirebaseModule.auth)
+
+    /** App-lifetime network flag; started once here, never stopped. */
+    val connectivity = ConnectivityObserver(appContext).also { it.start() }
 
     val http = OkHttpClient.Builder()
         .connectTimeout(15, TimeUnit.SECONDS)

@@ -83,16 +83,20 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import coil.compose.AsyncImage
 import com.jinki.app.AppContainer
+import com.jinki.app.BuildConfig
 import com.jinki.app.R
 import com.jinki.app.data.artwork.trackThumbnailCandidates
 import com.jinki.app.ui.library.LibraryScreen
 import com.jinki.app.ui.library.LibraryViewModel
 import com.jinki.app.ui.nowplaying.NowPlayingRoute
 import com.jinki.app.ui.nowplaying.NowPlayingViewModel
+import com.jinki.app.ui.nowplaying.UsernameOverlay
 import com.jinki.app.ui.search.SearchScreen
 import com.jinki.app.ui.search.SearchViewModel
 import com.jinki.app.ui.user.UserScreen
+import com.jinki.app.ui.user.NameSaveState
 import com.jinki.app.ui.user.UserViewModel
+import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.launch
 
 
@@ -141,13 +145,34 @@ private val tabExit: AnimatedContentTransitionScope<NavBackStackEntry>.() -> Exi
 }
 
 @Composable
-fun JinkaApp(container: AppContainer) {
+fun JinkaApp(container: AppContainer, openYou: SharedFlow<Unit>? = null) {
     val navController = rememberNavController()
     val backStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = backStackEntry?.destination?.route
     val snackbar = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
     val resources = LocalContext.current.resources
+
+    // Notification tap (PendingIntent extra open=user): land on the You tab.
+    LaunchedEffect(openYou) {
+        openYou?.collect {
+            navController.navigate(Destination.User.route) {
+                popUpTo(navController.graph.findStartDestination().id) {
+                    saveState = true
+                }
+                launchSingleTop = true
+                restoreState = true
+            }
+        }
+    }
+
+    // One shared instance for the User tab and the username overlay below,
+    // so both see the same name state.
+    val userVm: UserViewModel = viewModel(factory = UserViewModel.Factory(container))
+    val needsName by userVm.needsName.collectAsStateWithLifecycle()
+    val nameSaveState by userVm.saveState.collectAsStateWithLifecycle()
+    val nameStatus by userVm.statusText.collectAsStateWithLifecycle()
+    val currentName by userVm.name.collectAsStateWithLifecycle()
 
     
     
@@ -162,7 +187,11 @@ fun JinkaApp(container: AppContainer) {
                         resources.getString(R.string.playback_error_skipped, it, failure.message)
                     }
                     ?: failure.message
-                snackbar.showSnackbar(message)
+                // TEMP DEBUG AID — remove after diagnosing the "no track" issue.
+                val debugMessage =
+                    if (BuildConfig.DEBUG && failure.errorClass != null) "$message [${failure.errorClass}]"
+                    else message
+                snackbar.showSnackbar(debugMessage)
             }
         }
     }
@@ -265,12 +294,23 @@ fun JinkaApp(container: AppContainer) {
                     }
                 }
                 composable(Destination.User.route) {
-                    val vm: UserViewModel = viewModel(factory = UserViewModel.Factory(container))
                     Box(modifier = Modifier.fillMaxSize().padding(top = statusBarPadding, bottom = bottomBarPadding)) {
-                        UserScreen(vm, snackbar)
+                        UserScreen(userVm, snackbar)
                     }
                 }
             }
+        }
+        // Drawn last so it covers everything, only while no confirmed name
+        // is saved. Stays up through offline stretches until the server
+        // acknowledges the name.
+        if (needsName) {
+            UsernameOverlay(
+                onSubmit = userVm::saveUserName,
+                isSaving = nameSaveState is NameSaveState.Saving,
+                errorText = (nameSaveState as? NameSaveState.Error)?.message,
+                statusText = nameStatus,
+                initialName = currentName.takeIf { it.isNotBlank() }
+            )
         }
     }
 }

@@ -20,13 +20,16 @@ import com.jinki.app.R
 import com.jinki.app.data.ListenDay
 import com.jinki.app.data.ListenTracker
 import com.jinki.app.data.Track
+import com.jinki.app.poke.PokeNotifier
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeoutOrNull
@@ -92,6 +95,17 @@ class PlaybackService : MediaSessionService() {
                 if (player.isPlaying) runCatching { persistResume() }
             }
         }
+        // Poke listener survives while music plays. PokeNotifier keeps a
+        // single ChildEventListener while the app or the service is attached.
+        serviceScope.launch {
+            app.container.auth.currentUser
+                .map { it?.uid }
+                .distinctUntilChanged()
+                .collect { uid ->
+                    if (uid == null) PokeNotifier.detach(OWNER_SERVICE)
+                    else PokeNotifier.attach(this@PlaybackService, uid, OWNER_SERVICE)
+                }
+        }
     }
 
     override fun onGetSession(controllerInfo: MediaSession.ControllerInfo): MediaSession? = session
@@ -106,6 +120,7 @@ class PlaybackService : MediaSessionService() {
 
     override fun onDestroy() {
         persistJob?.cancel()
+        runCatching { PokeNotifier.detach(OWNER_SERVICE) }
         runCatching { app.container.connection.sleepTimer.onElapsed = {} }
         try {
             // The scope is torn down below, so the final persist must finish
@@ -189,9 +204,12 @@ class PlaybackService : MediaSessionService() {
         
         
         Log.d("Playback", "describe errorCode=${error.errorCode} msg=${error.message}")
+        // TEMP DEBUG AID — remove after diagnosing the "no track" issue.
+        Log.e("JinkiDebug", "playback error: ${error.javaClass.name} code=${error.errorCode}: ${error.message}")
         app.container.connection.notifyPlaybackError(
             message = describe(error),
-            skippedTitle = skippedTitle
+            skippedTitle = skippedTitle,
+            errorClass = error.javaClass.simpleName
         )
     }
 
@@ -253,5 +271,6 @@ class PlaybackService : MediaSessionService() {
     companion object {
         const val PERSIST_INTERVAL_MS = 30_000L
         const val FLUSH_TIMEOUT_MS = 1_500L
+        const val OWNER_SERVICE = "service"
     }
 }

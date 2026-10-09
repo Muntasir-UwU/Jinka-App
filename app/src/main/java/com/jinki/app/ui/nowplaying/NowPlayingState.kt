@@ -1,6 +1,7 @@
 package com.jinki.app.ui.nowplaying
 
 import androidx.compose.runtime.Immutable
+import com.jinki.app.data.lyrics.TimedLyricLine
 import com.jinki.app.player.RepeatMode
 
 @Immutable
@@ -18,8 +19,13 @@ data class NowPlayingState(
     val waveform: List<Float>,
     val queue: List<QueueItem> = emptyList(),
     val currentIndex: Int = -1,
-    val lyrics: List<String> = emptyList(),
-    val activeLyricIndex: Int = -1
+    val lyricsLines: List<TimedLyricLine> = emptyList(),
+    val lyricsPlain: String? = null,
+    val lyricsPositionMs: Long = 0L,
+    val lyricsPlaying: Boolean = false,
+    val lyricsBuffering: Boolean = false,
+    val lyricsSpeed: Float = 1f,
+    val lyricsOffsetMs: Long = 0L,
 )
 
 @Immutable
@@ -38,5 +44,6 @@ data class NowPlayingActions(
     val onQueueItemClick: (Int) -> Unit = {},
     val onQueueRemove: (Int) -> Unit = {},
     val onQueueMove: (from: Int, to: Int) -> Unit = { _, _ -> },
-    val onLyricClick: (Int) -> Unit = {}
+    val onLyricSeekMs: (Long) -> Unit = {},
+    val onLyricsOffset: (Long) -> Unit = {},
 )

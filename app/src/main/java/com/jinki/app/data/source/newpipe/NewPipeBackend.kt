@@ -1,5 +1,6 @@
 package com.jinki.app.data.source.newpipe
 
+import android.util.Log
 import com.jinki.app.data.artwork.soundCloudArtworkCandidates
 import com.jinki.app.data.artwork.youtubeArtworkCandidates
 import com.jinki.app.data.source.SOURCE_SOUNDCLOUD
@@ -99,6 +100,8 @@ class NewPipeBackend(
         } catch (e: ExtractionException) {
             throw describe(e)
         } catch (e: IOException) {
+            // TEMP DEBUG AID — remove after diagnosing the "no track" issue.
+            Log.e("JinkiDebug", "resolve network failed: ${e.javaClass.name}: ${e.message}")
             throw SourceException("Network error while loading this track.", e)
         }
 
@@ -182,17 +185,21 @@ class NewPipeBackend(
     }
 
     
-    private fun describe(e: ExtractionException): SourceException = SourceException(
-        when (e) {
-            is ContentNotAvailableException -> "That track isn't available any more."
-            is AgeRestrictedContentException -> "That track is age-restricted."
-            is GeographicRestrictionException -> "That track isn't available in this region."
-            is PrivateContentException -> "That track is private."
-            is PaidContentException -> "That track is paid content."
-            else -> e.message?.takeIf { it.isNotBlank() } ?: "Extraction failed."
-        },
-        e
-    )
+    private fun describe(e: ExtractionException): SourceException {
+        // TEMP DEBUG AID — remove after diagnosing the "no track" issue.
+        Log.e("JinkiDebug", "resolve extraction failed: ${e.javaClass.name}: ${e.message}")
+        return SourceException(
+            when (e) {
+                is ContentNotAvailableException -> "That track isn't available any more."
+                is AgeRestrictedContentException -> "That track is age-restricted."
+                is GeographicRestrictionException -> "That track isn't available in this region."
+                is PrivateContentException -> "That track is private."
+                is PaidContentException -> "That track is paid content."
+                else -> e.message?.takeIf { it.isNotBlank() } ?: "Extraction failed."
+            },
+            e
+        )
+    }
 
     companion object {
         val SUPPORTED = setOf(SOURCE_YOUTUBE, SOURCE_SOUNDCLOUD)

@@ -2,7 +2,9 @@ package com.jinki.app.data
 
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.FirebaseUser
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.channels.awaitClose
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
 import kotlinx.coroutines.tasks.await
@@ -39,4 +41,25 @@ class AuthRepository(private val auth: FirebaseAuth) {
     }
 
     fun signOut() = auth.signOut()
+
+    /**
+     * Return a signed-in user, signing in anonymously first if needed.
+     * Retries after a short delay until it works — never throws, never
+     * logs tokens or ids. Callers await this before any database write.
+     */
+    suspend fun ensureSignedIn(): FirebaseUser {
+        auth.currentUser?.let { return it }
+        while (true) {
+            try {
+                auth.signInAnonymously().await().user?.let { return it }
+            } catch (e: CancellationException) {
+                throw e // scope went away: stop retrying, don't swallow it
+            } catch (_: Exception) { /* retry below */ }
+            delay(SIGN_IN_RETRY_MS)
+        }
+    }
+
+    companion object {
+        private const val SIGN_IN_RETRY_MS = 5_000L
+    }
 }

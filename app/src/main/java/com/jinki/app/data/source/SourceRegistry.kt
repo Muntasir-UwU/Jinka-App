@@ -1,5 +1,6 @@
 package com.jinki.app.data.source
 
+import android.util.Log
 import com.jinki.app.data.source.newpipe.NewPipeBackend
 import kotlinx.coroutines.CancellationException
 
@@ -35,6 +36,15 @@ object SourceRegistry {
     suspend fun resolve(ref: SourceRef): ResolvedStream {
         val resolver = resolvers.firstOrNull { it.supports(ref.source) }
             ?: throw SourceException("Nothing can play ${ref.source} tracks.")
-        return resolver.resolve(ref)
+        return try {
+            resolver.resolve(ref)
+        } catch (c: CancellationException) {
+            throw c
+        } catch (e: Exception) {
+            // TEMP DEBUG AID — remove after diagnosing the "no track" issue.
+            // Logs source + exception only; never the track id, title, or URL.
+            Log.e("JinkiDebug", "SourceRegistry.resolve [${ref.source}] failed: ${e.javaClass.name}: ${e.message}")
+            throw e
+        }
     }
 }

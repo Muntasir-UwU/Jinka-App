@@ -109,8 +109,9 @@ fun LyricsSheetContent(
     title: String,
     lyrics: Lyrics,
     positionSeconds: Double? = null,
-    backgroundColor: Color = DefaultBackground,
+    backgroundColor: Color = Color.Transparent,
     isFullScreen: Boolean = false,
+    debugTrace: String = "",
     modifier: Modifier = Modifier
 ) {
     Column(
@@ -127,7 +128,17 @@ fun LyricsSheetContent(
         Spacer(Modifier.height(12.dp))
         when (lyrics) {
             is Lyrics.Loading -> LyricsMessage(stringResource(R.string.lyrics_fetching))
-            is Lyrics.Empty -> LyricsMessage(stringResource(R.string.lyrics_unavailable))
+            is Lyrics.Empty -> Column {
+                LyricsMessage(stringResource(R.string.lyrics_unavailable))
+                if (debugTrace.isNotBlank()) {
+                    Spacer(Modifier.height(8.dp))
+                    Text(
+                        text = debugTrace,
+                        style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.sp),
+                        color = Color.White.copy(alpha = 0.55f)
+                    )
+                }
+            }
             is Lyrics.Plain -> Text(
                 text = lyrics.text,
                 style = MaterialTheme.typography.bodyMedium.copy(

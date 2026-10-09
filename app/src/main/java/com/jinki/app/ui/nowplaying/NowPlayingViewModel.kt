@@ -7,6 +7,7 @@ import com.jinki.app.AppContainer
 import com.jinki.app.data.QueueStore
 import com.jinki.app.data.Track
 import com.jinki.app.data.TrackRepository
+import com.jinki.app.data.UserPrefs
 import com.jinki.app.data.artwork.trackThumbnailCandidates
 import com.jinki.app.data.lyrics.Lyrics
 import com.jinki.app.data.lyrics.LyricsRepository
@@ -32,11 +33,13 @@ class NowPlayingViewModel(
     private val lyricsRepo: LyricsRepository,
     val lastSearchResults: StateFlow<List<SearchHit>>,
     private val tracks: TrackRepository,
-    private val queueStore: QueueStore
+    private val queueStore: QueueStore,
+    private val prefs: UserPrefs
 ) : ViewModel() {
 
     val player: StateFlow<PlayerUiState> = connection.state
     val lyrics: StateFlow<Map<String, Lyrics>> = lyricsRepo.cache
+    val lyricsDebug: StateFlow<String> = lyricsRepo.debugTrace
 
     private val _favorites = MutableStateFlow<Set<String>>(emptySet())
     val favorites: StateFlow<Set<String>> = _favorites.asStateFlow()
@@ -47,11 +50,25 @@ class NowPlayingViewModel(
             else _favorites.value + key
     }
 
-    fun requestLyrics(track: Track) {
-        lyricsRepo.request(track)
+    fun requestLyrics(track: Track, durationSeconds: Double? = null) {
+        lyricsRepo.request(track, durationSeconds)
     }
 
     fun lyricsKey(track: Track): String = lyricsRepo.storeKeyFor(track)
+
+    val lyricsOffset: StateFlow<Long> = prefs.lyricsOffsetMs
+        .stateIn(viewModelScope, SharingStarted.Eagerly, 0L)
+
+    /** Nudge lyric sync in 50 ms steps inside ±2000 ms. */
+    fun adjustLyricsOffset(deltaMs: Long) {
+        viewModelScope.launch {
+            val next = (lyricsOffset.value + deltaMs).coerceIn(
+                UserPrefs.LYRICS_OFFSET_MIN_MS,
+                UserPrefs.LYRICS_OFFSET_MAX_MS,
+            )
+            prefs.setLyricsOffsetMs(next - next % 50)
+        }
+    }
 
     fun waveformSeed(track: Track): String = "${track.id}|${track.title}|${track.artist}"
 
@@ -157,7 +174,8 @@ class NowPlayingViewModel(
                 container.lyrics,
                 container.lastSearchResults,
                 container.tracks,
-                container.queueStore
+                container.queueStore,
+                container.prefs
             ) as T
     }
 }
